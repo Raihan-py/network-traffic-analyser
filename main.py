@@ -99,12 +99,22 @@ def calculate_total_bytes(packet_records):
     return total_bytes
 
 def calculate_average_packet_size(packet_records):
-    """Return the average paclet size, or 0.0 for an empty capture"""
+    """Return the average packet size, or 0.0 for an empty capture"""
     if not packet_records:
         return 0.0
 
     total_bytes = calculate_total_bytes(packet_records)
     return total_bytes / len(packet_records)
+
+def calculate_protocol_distribution(packet_records):
+    """Return the number of packets observed for each protocol"""
+    protocol_counts = {}
+
+    for packet_record in packet_records:
+        protocol = packet_record["protocol"]
+        protocol_counts[protocol] = protocol_counts.get(protocol, 0) + 1
+
+    return protocol_counts
 
 def main():
     """Run the command-line PCAP analyser."""
@@ -140,8 +150,12 @@ def main():
     print("Total bytes:", total_bytes)
 
     average_packet_size = calculate_average_packet_size(packet_records)
-    print("Average packet size:", average_packet_size)
+    print("Average packet size:", average_packet_size, "bytes")
 
+    protocol_distribution = calculate_protocol_distribution(packet_records)
+    print("Protocol distribution:")
+    for protocol, count in protocol_distribution.items():
+        print(f" {protocol}: {count}")
 
 # Prevent the interactive program from running when tests import its functions.
 if __name__ == "__main__":

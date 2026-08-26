@@ -2,7 +2,11 @@
 
 import unittest
 
-from main import calculate_average_packet_size, calculate_total_bytes
+from main import (
+    calculate_average_packet_size,
+    calculate_protocol_distribution,
+    calculate_total_bytes,
+)
 
 
 class TrafficStatisticsTests(unittest.TestCase):
@@ -39,6 +43,30 @@ class TrafficStatisticsTests(unittest.TestCase):
         average_size = calculate_average_packet_size([])
 
         self.assertEqual(average_size, 0.0)
+
+    def test_protocol_distribution_counts_repeated_protocols(self):
+        packet_records = [
+            {"protocol": "TCP"},
+            {"protocol": "TCP"},
+            {"protocol": "UDP"},
+            {"protocol": "ICMP"},
+        ]
+
+        distribution = calculate_protocol_distribution(packet_records)
+
+        self.assertEqual(distribution, {"TCP": 2, "UDP": 1, "ICMP": 1})
+
+    def test_protocol_distribution_includes_unknown_protocols(self):
+        packet_records = [{"protocol": "N/A"}]
+
+        distribution = calculate_protocol_distribution(packet_records)
+
+        self.assertEqual(distribution, {"N/A": 1})
+
+    def test_protocol_distribution_is_empty_for_an_empty_capture(self):
+        distribution = calculate_protocol_distribution([])
+
+        self.assertEqual(distribution, {})
 
 
 if __name__ == "__main__":
