@@ -71,7 +71,6 @@ def parse_packet(packet, packet_number):
 
     return packet_record
 
-
 def display_packet(packet_record):
     """Display one normalized packet record without depending on Scapy."""
 
@@ -99,6 +98,13 @@ def calculate_total_bytes(packet_records):
 
     return total_bytes
 
+def calculate_average_packet_size(packet_records):
+    """Return the average paclet size, or 0.0 for an empty capture"""
+    if not packet_records:
+        return 0.0
+
+    total_bytes = calculate_total_bytes(packet_records)
+    return total_bytes / len(packet_records)
 
 def main():
     """Run the command-line PCAP analyser."""
@@ -132,6 +138,9 @@ def main():
 
     total_bytes = calculate_total_bytes(packet_records)
     print("Total bytes:", total_bytes)
+
+    average_packet_size = calculate_average_packet_size(packet_records)
+    print("Average packet size:", average_packet_size)
 
 
 # Prevent the interactive program from running when tests import its functions.
