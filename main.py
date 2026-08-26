@@ -89,6 +89,16 @@ def display_packet(packet_record):
 
     print()
 
+def calculate_total_bytes(packet_records):
+    """Return the combined size of all parsed packets"""
+
+    total_bytes = 0
+
+    for packet_record in packet_records:
+        total_bytes += packet_record["packet_size"]
+
+    return total_bytes
+
 
 def main():
     """Run the command-line PCAP analyser."""
@@ -119,6 +129,9 @@ def main():
         display_packet(packet_record)
 
     print("Packet records created:", len(packet_records))
+
+    total_bytes = calculate_total_bytes(packet_records)
+    print("Total bytes:", total_bytes)
 
 
 # Prevent the interactive program from running when tests import its functions.
