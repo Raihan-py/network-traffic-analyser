@@ -1,0 +1,12 @@
+# Virtual environment
+.venv/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+
+# Packet captures may contain sensitive network data
+*.pcap
+
+# Local editor settings
+.vscode/
