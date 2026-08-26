@@ -1,16 +1,30 @@
 """Read a PCAP file and display useful information about each packet."""
 
-from scapy.all import IP, TCP, UDP, ICMP, ARP, rdpcap
-from scapy.error import Scapy_Exception
 from datetime import datetime, timezone
 
+from scapy.all import IP, TCP, UDP, ICMP, IPv6, ARP, rdpcap
+from scapy.error import Scapy_Exception
+
+
 def parse_packet(packet, packet_number):
-    """Convert one Scapy packet into a consistent dictionary."""
+    """Convert one Scapy packet into a normalized dictionary.
+
+    Every returned dictionary has the same keys. Values remain ``None`` when a
+    field does not apply, such as ports on an ICMP or ARP packet.
+
+    Args:
+        packet: A packet decoded by Scapy.
+        packet_number: The packet's one-based position in the capture.
+
+    Returns:
+        A dictionary containing the common fields used by later analysis.
+    """
 
     # Convert Scapy's Unix timestamp to an unambiguous UTC date and time.
-    capture_time = datetime.fromtimestamp(float(packet.time), tz = timezone.utc)
+    capture_time = datetime.fromtimestamp(float(packet.time), tz=timezone.utc)
 
-    packet_record = { 
+    # A fixed schema lets later statistics process every protocol consistently.
+    packet_record = {
         "packet_number": packet_number,
         "timestamp": capture_time.isoformat(),
         "packet_size": len(packet),
@@ -27,14 +41,18 @@ def parse_packet(packet, packet_number):
         packet_record["source_ip"] = ip_layer.src
         packet_record["destination_ip"] = ip_layer.dst
 
+    elif packet.haslayer(IPv6):
+        ipv6_layer = packet[IPv6]
+        packet_record["source_ip"] = ipv6_layer.src
+        packet_record["destination_ip"] = ipv6_layer.dst
 
-    # Only access a protocol layer after confirming that the packet contains it.
+    # This is a separate check because TCP/UDP can run over either IPv4 or IPv6,
+    # while ARP does not contain an IP layer at all.
     if packet.haslayer(TCP):
         tcp_layer = packet[TCP]
         packet_record["protocol"] = "TCP"
         packet_record["source_port"] = tcp_layer.sport
         packet_record["destination_port"] = tcp_layer.dport
-
 
     elif packet.haslayer(UDP):
         udp_layer = packet[UDP]
@@ -42,11 +60,8 @@ def parse_packet(packet, packet_number):
         packet_record["source_port"] = udp_layer.sport
         packet_record["destination_port"] = udp_layer.dport
 
-
     elif packet.haslayer(ICMP):
-        icmp_layer = packet[ICMP]
         packet_record["protocol"] = "ICMP"
-
 
     elif packet.haslayer(ARP):
         arp_layer = packet[ARP]
@@ -56,104 +71,56 @@ def parse_packet(packet, packet_number):
 
     return packet_record
 
-def display_packet(packet, packet_number):
-    """Display decoded information for one Scapy packet."""
 
-    print(f"\n--- Packet {packet_number} ---") 
-    print(packet.summary())
-    print("Packet size:", len(packet), "bytes")
-    print("Raw timestamp:", packet.time)
+def display_packet(packet_record):
+    """Display one normalized packet record without depending on Scapy."""
 
-    # Convert Scapy's Unix timestamp to an unambiguous UTC date and time.
-    capture_time = datetime.fromtimestamp(float(packet.time), tz = timezone.utc)
-    print("Timestamp (UTC):", capture_time.isoformat())
+    print(f"\n--- Packet {packet_record['packet_number']} ---")
+    print("Timestamp (UTC):", packet_record["timestamp"])
+    print("Packet size:", packet_record["packet_size"], "bytes")
+    print("Source IP:", packet_record["source_ip"])
+    print("Destination IP:", packet_record["destination_ip"])
+    print("Protocol:", packet_record["protocol"])
 
-    packet_record = { 
-        "packet_number": packet_number,
-        "timestamp": capture_time.isoformat(),
-        "packet_size": len(packet),
-        "source_ip": None,
-        "destination_ip": None,
-        "protocol": "N/A",
-        "source_port": None,
-        "destination_port": None,
-    }
+    # Ports only apply to protocols such as TCP and UDP.
+    if packet_record["source_port"] is not None:
+        print("Source port:", packet_record["source_port"])
+        print("Destination port:", packet_record["destination_port"])
 
-    # IP addresses belong to the network layer and are separate from ports.
-    if packet.haslayer(IP):
-        ip_layer = packet[IP]
-        packet_record["source_ip"] = ip_layer.src
-        packet_record["destination_ip"] = ip_layer.dst
-        print("Source IP:", ip_layer.src)
-        print("Destination IP", ip_layer.dst)
-
-    # Only access a protocol layer after confirming that the packet contains it.
-    if packet.haslayer(TCP):
-        tcp_layer = packet[TCP]
-        packet_record["protocol"] = "TCP"
-        packet_record["source_port"] = tcp_layer.sport
-        packet_record["destination_port"] = tcp_layer.dport
-        print("Protocol: TCP")
-        print("Source port:", tcp_layer.sport)
-        print("Destination port", tcp_layer.dport)
-
-    elif packet.haslayer(UDP):
-        udp_layer = packet[UDP]
-        packet_record["protocol"] = "UDP"
-        packet_record["source_port"] = udp_layer.sport
-        packet_record["destination_port"] = udp_layer.dport
-        print("Protocol: UDP")
-        print("Source port:", udp_layer.sport)
-        print("Destination port", udp_layer.dport)
-
-    elif packet.haslayer(ICMP):
-        icmp_layer = packet[ICMP]
-        packet_record["protocol"] = "ICMP"
-        print("Protocol: ICMP")
-        print("ICMP type:", icmp_layer.type)
-        print("ICMP code:", icmp_layer.code)
-
-    elif packet.haslayer(ARP):
-        arp_layer = packet[ARP]
-        packet_record["protocol"] = "ARP"
-        packet_record["source_ip"] = arp_layer.psrc
-        packet_record["destination_ip"] = arp_layer.pdst
-        print("Protocol: ARP")
-        print("Operation:", arp_layer.op)
-        print("Sender IP:", arp_layer.psrc)
-        print("Target IP:", arp_layer.pdst)
-        print("Sender MAC:", arp_layer.hwsrc)
-        print("Target MAC:", arp_layer.hwdst)
-
-    else :
-        print("Protocol : N/A")
-
-    print("")
-    print("Packet record:", packet_record)
-    return packet_record
+    print()
 
 
-# Ask at runtime so the analyser can inspect different capture files.
-pcap_filename = input("enter the PCAP filename: ").strip()
+def main():
+    """Run the command-line PCAP analyser."""
 
-try:
-    packets = rdpcap(pcap_filename)
-except FileNotFoundError:
-    print(f"Error: '{pcap_filename}' was not found.")
-    raise SystemExit(1)
-except Scapy_Exception as error:
-    print(f"Error: '{pcap_filename}' is not a valid capture file.")
-    print("Details:", error)
-    raise SystemExit(1)
+    # Ask at runtime so the analyser can inspect different capture files.
+    pcap_filename = input("enter the PCAP filename: ").strip()
 
-print("Number of packets:", len(packets))
+    try:
+        # rdpcap is convenient for small files because it loads every packet.
+        # A streaming reader will be preferable for large captures later.
+        packets = rdpcap(pcap_filename)
+    except FileNotFoundError:
+        print(f"Error: '{pcap_filename}' was not found.")
+        raise SystemExit(1)
+    except Scapy_Exception as error:
+        print(f"Error: '{pcap_filename}' is not a valid capture file.")
+        print("Details:", error)
+        raise SystemExit(1)
 
-packet_records = []
+    print("Number of packets:", len(packets))
 
-for packet_number, packet in enumerate(packets, start=1):
-    parsed_record = parse_packet(packet, packet_number)
-    displayed_record = display_packet(packet, packet_number)
+    packet_records = []
 
-    print("Parser matches display:", parsed_record == displayed_record)
-    packet_records.append(parsed_record)
-    
+    # start=1 gives users familiar one-based packet numbering.
+    for packet_number, packet in enumerate(packets, start=1):
+        packet_record = parse_packet(packet, packet_number)
+        packet_records.append(packet_record)
+        display_packet(packet_record)
+
+    print("Packet records created:", len(packet_records))
+
+
+# Prevent the interactive program from running when tests import its functions.
+if __name__ == "__main__":
+    main()

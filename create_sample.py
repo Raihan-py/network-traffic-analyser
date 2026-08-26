@@ -1,8 +1,12 @@
-"""Create small, synthetic PCAP files for safely testing the analyser."""
+"""Create small, synthetic PCAP files for safely testing the analyser.
 
-from scapy.all import IP, TCP, UDP, ICMP, Ether, ARP, wrpcap
+The packets are written to disk only; this script does not transmit them.
+"""
 
-# These IP ranges are reserved for documentation and examples.
+from scapy.all import IP, TCP, UDP, ICMP, IPv6, Ether, ARP, wrpcap
+
+# Scapy's / operator stacks protocol layers; it does not mean division here.
+# These IPv4 ranges are reserved for documentation and examples.
 tcp_packet = IP(src="192.0.2.10", dst="198.51.100.20") / TCP(sport=51000, dport=80)
 udp_packet = IP(src="192.0.2.30", dst="198.51.100.40") / UDP(sport=52000, dport=53)
 icmp_packet = IP(src="192.0.2.50", dst="198.51.100.60") / ICMP()
@@ -18,11 +22,21 @@ arp_packet = (
     )
 )
 
-packets = [tcp_packet, udp_packet,icmp_packet]
+# 2001:db8::/32 is the IPv6 prefix reserved for documentation.
+ipv6_packet = (
+    IPv6(src="2001:db8::10", dst="2001:db8::20")
+    / TCP(sport=53000, dport=443)
+)
 
+packets = [tcp_packet, udp_packet, icmp_packet]
+
+# wrpcap serializes packets into a capture file without sending network traffic.
 wrpcap("sample.pcap", packets)
 print("created sample.pcap")
 
 # Keep ARP separate because it uses Ethernet, unlike the raw IP sample.
 wrpcap("arp_sample.pcap", [arp_packet])
 print("created arp_sample.pcap")
+
+wrpcap("ipv6_sample.pcap", [ipv6_packet])
+print("created ipv6_sample.pcap")
