@@ -116,6 +116,24 @@ def calculate_protocol_distribution(packet_records):
 
     return protocol_counts
 
+def calculate_source_ip_counts(packet_records):
+    """Count packets for each available source IP address."""
+
+    source_ip_counts = {}
+
+    for packet_record in packet_records:
+        source_ip = packet_record["source_ip"]
+
+        # None represents a packet without an applicable network address.
+        if source_ip is None:
+            continue
+
+        source_ip_counts[source_ip] = source_ip_counts.get(source_ip, 0) + 1
+
+    return source_ip_counts
+
+
+
 def main():
     """Run the command-line PCAP analyser."""
 
@@ -156,6 +174,11 @@ def main():
     print("Protocol distribution:")
     for protocol, count in protocol_distribution.items():
         print(f" {protocol}: {count}")
+
+    source_ip_counts = calculate_source_ip_counts(packet_records)
+    print("Source IP counts:")
+    for source_ip, count in source_ip_counts.items():
+        print(f" {source_ip}: {count}")
 
 # Prevent the interactive program from running when tests import its functions.
 if __name__ == "__main__":

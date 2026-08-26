@@ -5,6 +5,7 @@ import unittest
 from main import (
     calculate_average_packet_size,
     calculate_protocol_distribution,
+    calculate_source_ip_counts,
     calculate_total_bytes,
 )
 
@@ -67,6 +68,32 @@ class TrafficStatisticsTests(unittest.TestCase):
         distribution = calculate_protocol_distribution([])
 
         self.assertEqual(distribution, {})
+
+    def test_source_ip_counts_repeated_addresses(self):
+        packet_records = [
+            {"source_ip": "192.0.2.10"},
+            {"source_ip": "192.0.2.10"},
+            {"source_ip": "192.0.2.30"},
+        ]
+
+        source_counts = calculate_source_ip_counts(packet_records)
+
+        self.assertEqual(source_counts, {"192.0.2.10": 2, "192.0.2.30": 1})
+
+    def test_source_ip_counts_ignore_missing_addresses(self):
+        packet_records = [
+            {"source_ip": None},
+            {"source_ip": "192.0.2.10"},
+        ]
+
+        source_counts = calculate_source_ip_counts(packet_records)
+
+        self.assertEqual(source_counts, {"192.0.2.10": 1})
+
+    def test_source_ip_counts_are_empty_for_an_empty_capture(self):
+        source_counts = calculate_source_ip_counts([])
+
+        self.assertEqual(source_counts, {})
 
 
 if __name__ == "__main__":
