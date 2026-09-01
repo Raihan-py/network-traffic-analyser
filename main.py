@@ -132,6 +132,150 @@ def calculate_source_ip_counts(packet_records):
 
     return source_ip_counts
 
+def calculate_destination_ip_counts(packet_records):
+    """Count packets for each available destination IP address."""
+
+    destination_ip_counts = {}
+
+    for packet_record in packet_records:
+        destination_ip = packet_record["destination_ip"]
+
+        # Do not treat a missing address as a contacted destination host.
+        if destination_ip is None:
+            continue
+
+        destination_ip_counts[destination_ip] = (
+            destination_ip_counts.get(destination_ip, 0) + 1
+        )
+
+    return destination_ip_counts
+
+def calculate_destination_port_counts(packet_records):
+    """Count packets for each available destination port."""
+
+    destination_port_counts = {}
+
+    for packet_record in packet_records:
+        destination_port = packet_record["destination_port"]
+
+        # ICMP, ARP, and unsupported protocols may not have port numbers.
+        if destination_port is None:
+            continue
+
+        destination_port_counts[destination_port] = (
+            destination_port_counts.get(destination_port, 0) + 1
+        )
+
+    return destination_port_counts
+
+def get_top_counts(counts, limit=5):
+    """Return up to ``limit`` items ordered from highest to lowest count."""
+
+    count_pairs = counts.items()
+
+    # Each pair is (item, count), so pair[1] is the value used for ranking.
+    sorted_pairs = sorted(
+        count_pairs,
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+
+    return sorted_pairs[:limit]
+
+def calculate_capture_duration(packet_records):
+    """Return seconds between the earliest and latest packet timestamps."""
+
+    # A duration needs at least two observations.
+    if len(packet_records) < 2:
+        return 0.0
+
+    timestamps = []
+    for packet_record in packet_records:
+        timestamp = packet_record["timestamp"]
+        timestamps.append(datetime.fromisoformat(timestamp))
+
+    # min/max remain correct even if records are not in chronological order.
+    earliest = min(timestamps)
+    latest = max(timestamps)
+
+    duration = latest - earliest
+    return duration.total_seconds()
+
+def calculate_packets_per_second(packet_records):
+    """Return the average packet rate across the capture duration."""
+
+    duration = calculate_capture_duration(packet_records)
+
+    # Identical timestamps (or too few packets) give no measurable time span.
+    if duration == 0:
+        return 0.0
+
+    total_records = len(packet_records)
+    packets_per_second = total_records / duration
+    return packets_per_second
+
+def calculate_statistics(packet_records):
+    """Combine packet records into one capture-level statistics dictionary."""
+
+    protocol_counts = calculate_protocol_distribution(packet_records)
+    source_ip_counts = calculate_source_ip_counts(packet_records)
+    destination_ip_counts = calculate_destination_ip_counts(packet_records)
+    destination_port_counts = calculate_destination_port_counts(packet_records)
+
+    # Keep the complete protocol breakdown, but limit potentially long host and
+    # port rankings to the most frequent entries.
+    top_source_ips = get_top_counts(source_ip_counts)
+    top_destination_ips = get_top_counts(destination_ip_counts)
+    top_destination_ports = get_top_counts(destination_port_counts)
+
+    total_packets = len(packet_records)
+    total_bytes = calculate_total_bytes(packet_records)
+    average_packet_size = calculate_average_packet_size(packet_records)
+    capture_duration = calculate_capture_duration(packet_records)
+    packets_per_second = calculate_packets_per_second(packet_records)
+
+    statistics = {
+        "total_packets": total_packets,
+        "total_bytes": total_bytes,
+        "average_packet_size": average_packet_size,
+        "protocol_distribution": protocol_counts,
+        "top_source_ips": top_source_ips,
+        "top_destination_ips": top_destination_ips,
+        "top_destination_ports": top_destination_ports,
+        "capture_duration": capture_duration,
+        "packets_per_second": packets_per_second,
+    }
+
+    return statistics
+
+def display_ranked_counts(title, ranked_counts):
+    """Print a named list of items ordered by their occurrence count."""
+
+    print(f"\n{title}:")
+    for item, count in ranked_counts:
+        print(f" {item}: {count}")
+
+
+def display_statistics(statistics):
+    """Display the complete capture summary in a readable format."""
+
+    print("Total packets:", statistics["total_packets"])
+    print("Total bytes:", statistics["total_bytes"], "bytes")
+    print("Average packet size:", statistics["average_packet_size"], "bytes")
+    print("Capture duration:", statistics["capture_duration"], "seconds")
+    print(
+        "Packets per second:",
+        statistics["packets_per_second"],
+        "packets/second",
+    )
+
+    print("\nProtocol distribution:")
+    for protocol, count in statistics["protocol_distribution"].items():
+        print(f" {protocol}: {count}")
+
+    display_ranked_counts("Top source IPs", statistics["top_source_ips"])
+    display_ranked_counts("Top destination IPs", statistics["top_destination_ips"])
+    display_ranked_counts("Top destination ports", statistics["top_destination_ports"])
 
 
 def main():
@@ -164,21 +308,8 @@ def main():
 
     print("Packet records created:", len(packet_records))
 
-    total_bytes = calculate_total_bytes(packet_records)
-    print("Total bytes:", total_bytes)
-
-    average_packet_size = calculate_average_packet_size(packet_records)
-    print("Average packet size:", average_packet_size, "bytes")
-
-    protocol_distribution = calculate_protocol_distribution(packet_records)
-    print("Protocol distribution:")
-    for protocol, count in protocol_distribution.items():
-        print(f" {protocol}: {count}")
-
-    source_ip_counts = calculate_source_ip_counts(packet_records)
-    print("Source IP counts:")
-    for source_ip, count in source_ip_counts.items():
-        print(f" {source_ip}: {count}")
+    statistics = calculate_statistics(packet_records)
+    display_statistics(statistics)
 
 # Prevent the interactive program from running when tests import its functions.
 if __name__ == "__main__":

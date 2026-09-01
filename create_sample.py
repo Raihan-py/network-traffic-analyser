@@ -4,6 +4,7 @@ The packets are written to disk only; this script does not transmit them.
 """
 
 from scapy.all import IP, TCP, UDP, ICMP, IPv6, Ether, ARP, wrpcap
+import time
 
 # Scapy's / operator stacks protocol layers; it does not mean division here.
 # These IPv4 ranges are reserved for documentation and examples.
@@ -29,6 +30,11 @@ ipv6_packet = (
 )
 
 packets = [tcp_packet, udp_packet, icmp_packet]
+
+base_timestamp = time.time()
+tcp_packet.time = base_timestamp
+udp_packet.time = base_timestamp + 0.5
+icmp_packet.time = base_timestamp + 1
 
 # wrpcap serializes packets into a capture file without sending network traffic.
 wrpcap("sample.pcap", packets)

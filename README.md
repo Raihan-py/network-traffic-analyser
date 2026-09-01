@@ -1,7 +1,7 @@
 # Network Traffic Analyser
 
 A Python cybersecurity learning project for reading PCAP files, decoding packet
-layers with Scapy, and turning packets into consistent records for later traffic
+layers with Scapy, and turning packets into consistent records for traffic
 analysis and security detection.
 
 The project currently focuses on offline, controlled PCAP analysis. It does not
@@ -9,7 +9,7 @@ capture or transmit live network traffic.
 
 ## Current status
 
-Stage 1—the PCAP packet reader—is functionally complete. It currently supports:
+Stages 1 and 2 are functionally complete. The analyser currently supports:
 
 - Reading a user-selected PCAP file
 - IPv4 and IPv6 source and destination addresses
@@ -19,21 +19,24 @@ Stage 1—the PCAP packet reader—is functionally complete. It currently suppor
 - Consistent dictionary records for different protocols
 - Friendly errors for missing or invalid capture files
 - Synthetic test captures that do not send network traffic
-- Automated parser tests using Python's built-in `unittest`
-
-Stage 2 will add aggregate traffic statistics such as total bytes, average packet
-size, protocol distribution, common ports, and active hosts.
+- Total traffic volume and average packet size
+- Protocol distribution
+- Most active source and destination IP addresses
+- Most frequently used destination ports
+- Capture duration and packets-per-second rate
+- Automated parser and statistics tests using Python's built-in `unittest`
 
 ## Project structure
 
 ```text
 network_traffic_analyser/
-├── main.py                    # PCAP reader, parser, and terminal output
-├── create_sample.py           # Generates safe synthetic test captures
-├── requirements.txt           # Python dependency versions
-├── tests/
-│   └── test_packet_parser.py  # Automated parser tests
-└── README.md
+|-- main.py                    # Parser, statistics, and terminal output
+|-- create_sample.py           # Generates safe synthetic test captures
+|-- requirements.txt           # Python dependency versions
+|-- tests/
+|   |-- test_packet_parser.py  # Automated parser tests
+|   `-- test_statistics.py     # Automated statistics and output tests
+`-- README.md
 ```
 
 Generated `.pcap` files and the local virtual environment are intentionally
@@ -99,7 +102,8 @@ python -m unittest discover -s tests -v
 ```
 
 The tests construct packets in memory and verify normalized records for IPv4,
-IPv6, TCP, UDP, ICMP, and ARP. They do not send network traffic.
+IPv6, TCP, UDP, ICMP, and ARP. They also verify aggregate statistics, edge cases,
+rankings, and formatted statistics output. They do not send network traffic.
 
 ## Safety and scope
 
@@ -114,7 +118,7 @@ its platform-specific dependencies will be addressed in a later stage.
 ## Roadmap
 
 - [x] Stage 1: PCAP packet reader and normalized packet records
-- [ ] Stage 2: Traffic statistics
+- [x] Stage 2: Traffic statistics
 - [ ] Stage 3: Protocol analysis, including DNS and appropriate HTTP metadata
 - [ ] Stage 4: Understandable rule-based security detection
 - [ ] Stage 5: Structured security alerts
