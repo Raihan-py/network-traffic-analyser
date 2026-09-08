@@ -9,6 +9,10 @@ from main import (
     calculate_capture_duration,
     calculate_destination_ip_counts,
     calculate_destination_port_counts,
+    calculate_dns_query_counts,
+    calculate_http_host_counts,
+    calculate_http_method_counts,
+    calculate_http_status_counts,
     calculate_packets_per_second,
     calculate_protocol_distribution,
     calculate_source_ip_counts,
@@ -33,6 +37,142 @@ class TrafficStatisticsTests(unittest.TestCase):
         total_bytes = calculate_total_bytes(packet_records)
 
         self.assertEqual(total_bytes, 96)
+
+    def test_dns_query_counts_repeated_queries(self):
+        packet_records = [
+            {"dns_message_type": "Query", "dns_query": "example.test."},
+            {"dns_message_type": "Query", "dns_query": "example.test."},
+            {"dns_message_type": "Query", "dns_query": "other.test."},
+        ]
+
+        counts = calculate_dns_query_counts(packet_records)
+
+        self.assertEqual(counts, {"example.test.": 2, "other.test.": 1})
+
+    def test_dns_query_counts_ignore_responses(self):
+        packet_records = [
+            {"dns_message_type": "Query", "dns_query": "example.test."},
+            {"dns_message_type": "Response", "dns_query": "example.test."},
+        ]
+
+        counts = calculate_dns_query_counts(packet_records)
+
+        self.assertEqual(counts, {"example.test.": 1})
+
+    def test_dns_query_counts_ignore_missing_query_names(self):
+        packet_records = [
+            {"dns_message_type": "Query", "dns_query": None},
+            {"dns_message_type": None, "dns_query": None},
+        ]
+
+        counts = calculate_dns_query_counts(packet_records)
+
+        self.assertEqual(counts, {})
+
+    def test_dns_query_counts_are_empty_for_an_empty_capture(self):
+        self.assertEqual(calculate_dns_query_counts([]), {})
+
+    def test_http_host_counts_repeated_hosts(self):
+        packet_records = [
+            {"application_protocol": "HTTP", "http_host": "example.test"},
+            {"application_protocol": "HTTP", "http_host": "example.test"},
+            {"application_protocol": "HTTP", "http_host": "other.test"},
+        ]
+
+        counts = calculate_http_host_counts(packet_records)
+
+        self.assertEqual(counts, {"example.test": 2, "other.test": 1})
+
+    def test_http_host_counts_ignore_non_http_records(self):
+        packet_records = [
+            {"application_protocol": "HTTP", "http_host": "example.test"},
+            {"application_protocol": "DNS", "http_host": "example.test"},
+        ]
+
+        counts = calculate_http_host_counts(packet_records)
+
+        self.assertEqual(counts, {"example.test": 1})
+
+    def test_http_host_counts_ignore_missing_hosts(self):
+        packet_records = [
+            {"application_protocol": "HTTP", "http_host": None},
+            {"application_protocol": None, "http_host": None},
+        ]
+
+        counts = calculate_http_host_counts(packet_records)
+
+        self.assertEqual(counts, {})
+
+    def test_http_host_counts_are_empty_for_an_empty_capture(self):
+        self.assertEqual(calculate_http_host_counts([]), {})
+
+    def test_http_method_counts_repeated_methods(self):
+        packet_records = [
+            {"application_protocol": "HTTP", "http_method": "GET"},
+            {"application_protocol": "HTTP", "http_method": "GET"},
+            {"application_protocol": "HTTP", "http_method": "POST"},
+        ]
+
+        counts = calculate_http_method_counts(packet_records)
+
+        self.assertEqual(counts, {"GET": 2, "POST": 1})
+
+    def test_http_method_counts_ignore_non_http_records(self):
+        packet_records = [
+            {"application_protocol": "HTTP", "http_method": "GET"},
+            {"application_protocol": "DNS", "http_method": "GET"},
+        ]
+
+        counts = calculate_http_method_counts(packet_records)
+
+        self.assertEqual(counts, {"GET": 1})
+
+    def test_http_method_counts_ignore_missing_methods(self):
+        packet_records = [
+            {"application_protocol": "HTTP", "http_method": None},
+            {"application_protocol": None, "http_method": None},
+        ]
+
+        counts = calculate_http_method_counts(packet_records)
+
+        self.assertEqual(counts, {})
+
+    def test_http_method_counts_are_empty_for_an_empty_capture(self):
+        self.assertEqual(calculate_http_method_counts([]), {})
+
+    def test_http_status_counts_repeated_codes(self):
+        packet_records = [
+            {"http_message_type": "Response", "http_status_code": "200"},
+            {"http_message_type": "Response", "http_status_code": "200"},
+            {"http_message_type": "Response", "http_status_code": "404"},
+        ]
+
+        counts = calculate_http_status_counts(packet_records)
+
+        self.assertEqual(counts, {"200": 2, "404": 1})
+
+    def test_http_status_counts_ignore_requests(self):
+        packet_records = [
+            {"http_message_type": "Response", "http_status_code": "200"},
+            {"http_message_type": "Request", "http_status_code": "200"},
+        ]
+
+        counts = calculate_http_status_counts(packet_records)
+
+        self.assertEqual(counts, {"200": 1})
+
+    def test_http_status_counts_ignore_missing_codes(self):
+        packet_records = [
+            {"http_message_type": "Response", "http_status_code": None},
+            {"http_message_type": None, "http_status_code": None},
+        ]
+
+        counts = calculate_http_status_counts(packet_records)
+
+        self.assertEqual(counts, {})
+
+    def test_http_status_counts_are_empty_for_an_empty_capture(self):
+        self.assertEqual(calculate_http_status_counts([]), {})
 
     def test_total_bytes_is_zero_for_an_empty_capture(self):
         total_bytes = calculate_total_bytes([])
@@ -277,6 +417,13 @@ class TrafficStatisticsTests(unittest.TestCase):
                 "source_ip": "192.0.2.10",
                 "destination_ip": "198.51.100.20",
                 "destination_port": 80,
+                "dns_message_type": None,
+                "dns_query": None,
+                "application_protocol": "HTTP",
+                "http_host": "example.test",
+                "http_method": "GET",
+                "http_message_type": "Request",
+                "http_status_code": None,
             },
             {
                 "timestamp": "2026-08-31T12:00:00.500000+00:00",
@@ -285,6 +432,13 @@ class TrafficStatisticsTests(unittest.TestCase):
                 "source_ip": "192.0.2.10",
                 "destination_ip": "198.51.100.40",
                 "destination_port": 80,
+                "dns_message_type": "Query",
+                "dns_query": "example.test.",
+                "application_protocol": "DNS",
+                "http_host": None,
+                "http_method": None,
+                "http_message_type": None,
+                "http_status_code": None,
             },
             {
                 "timestamp": "2026-08-31T12:00:01+00:00",
@@ -293,6 +447,13 @@ class TrafficStatisticsTests(unittest.TestCase):
                 "source_ip": "192.0.2.30",
                 "destination_ip": "198.51.100.20",
                 "destination_port": None,
+                "dns_message_type": None,
+                "dns_query": None,
+                "application_protocol": None,
+                "http_host": None,
+                "http_method": None,
+                "http_message_type": None,
+                "http_status_code": None,
             },
         ]
 
@@ -316,6 +477,10 @@ class TrafficStatisticsTests(unittest.TestCase):
         self.assertEqual(statistics["top_destination_ports"], [(80, 2)])
         self.assertEqual(statistics["capture_duration"], 1.0)
         self.assertEqual(statistics["packets_per_second"], 3.0)
+        self.assertEqual(statistics["top_dns_queries"], [("example.test.", 1)])
+        self.assertEqual(statistics["top_http_hosts"], [("example.test", 1)])
+        self.assertEqual(statistics["http_method_distribution"], {"GET": 1})
+        self.assertEqual(statistics["http_status_distribution"], {})
 
     def test_statistics_return_safe_defaults_for_an_empty_capture(self):
         statistics = calculate_statistics([])
@@ -332,6 +497,10 @@ class TrafficStatisticsTests(unittest.TestCase):
                 "top_destination_ports": [],
                 "capture_duration": 0.0,
                 "packets_per_second": 0.0,
+                "top_dns_queries": [],
+                "top_http_hosts": [],
+                "http_method_distribution": {},
+                "http_status_distribution": {},
             },
         )
 
@@ -354,6 +523,10 @@ class TrafficStatisticsTests(unittest.TestCase):
             "top_destination_ports": [(80, 1)],
             "capture_duration": 1.0,
             "packets_per_second": 3.0,
+            "top_dns_queries": [("example.test.", 1)],
+            "top_http_hosts": [("example.test", 1)],
+            "http_method_distribution": {"GET": 1},
+            "http_status_distribution": {"200": 1},
         }
         output = io.StringIO()
 
@@ -365,6 +538,10 @@ class TrafficStatisticsTests(unittest.TestCase):
         self.assertIn("Capture duration: 1.0 seconds", displayed_text)
         self.assertIn("Packets per second: 3.0 packets/second", displayed_text)
         self.assertIn("Top destination ports:\n 80: 1", displayed_text)
+        self.assertIn("Top DNS queries:\n example.test.: 1", displayed_text)
+        self.assertIn("Top HTTP hosts:\n example.test: 1", displayed_text)
+        self.assertIn("HTTP method distribution:\n GET: 1", displayed_text)
+        self.assertIn("HTTP status distribution:\n 200: 1", displayed_text)
 
 
 if __name__ == "__main__":

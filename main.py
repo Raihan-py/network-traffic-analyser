@@ -2,8 +2,9 @@
 
 from datetime import datetime, timezone
 
-from scapy.all import IP, TCP, UDP, ICMP, IPv6, ARP, rdpcap
+from scapy.all import IP, TCP, UDP, ICMP, IPv6, ARP, rdpcap, DNS, DNSQR, DNSRR
 from scapy.error import Scapy_Exception
+from scapy.layers.http import HTTPRequest, HTTPResponse
 
 
 def parse_packet(packet, packet_number):
@@ -33,6 +34,16 @@ def parse_packet(packet, packet_number):
         "protocol": "N/A",
         "source_port": None,
         "destination_port": None,
+        "application_protocol": None,
+        "dns_query": None,
+        "dns_message_type": None,
+        "dns_answer": None,
+        "http_method": None,
+        "http_host": None,
+        "http_path": None,
+        "http_message_type": None,
+        "http_status_code": None,
+        "http_reason": None,
     }
 
     # IP addresses belong to the network layer and are separate from ports.
@@ -69,6 +80,49 @@ def parse_packet(packet, packet_number):
         packet_record["source_ip"] = arp_layer.psrc
         packet_record["destination_ip"] = arp_layer.pdst
 
+    # Application protocols are checked independently because they are carried
+    # inside the TCP or UDP transport layer identified above.
+    if packet.haslayer(DNS):
+        packet_record["application_protocol"] = "DNS"
+        dns_layer = packet[DNS]
+        if dns_layer.qr == 0:
+            packet_record["dns_message_type"] = "Query"
+        else:
+            packet_record["dns_message_type"] = "Response"
+
+        if packet.haslayer(DNSQR):
+            packet_record["dns_query"] = packet[DNSQR].qname.decode()
+
+        if packet.haslayer(DNSRR):
+            packet_record["dns_answer"] = packet[DNSRR].rdata
+
+    if packet.haslayer(HTTPRequest):
+        packet_record["application_protocol"] = "HTTP"
+        packet_record["http_message_type"] = "Request"
+        http_layer = packet[HTTPRequest]
+
+        if http_layer.Method is not None:
+            packet_record["http_method"] = http_layer.Method.decode(errors="replace")
+
+        if http_layer.Host is not None:
+            packet_record["http_host"] = http_layer.Host.decode(errors="replace")
+
+        if http_layer.Path is not None:
+            packet_record["http_path"] = http_layer.Path.decode(errors="replace")
+
+    if packet.haslayer(HTTPResponse):
+        http_layer = packet[HTTPResponse]
+        packet_record["application_protocol"] = "HTTP"
+        packet_record["http_message_type"] = "Response"
+
+        if http_layer.Status_Code is not None:
+            packet_record["http_status_code"] = http_layer.Status_Code.decode(errors="replace")
+
+        if http_layer.Reason_Phrase is not None:
+            packet_record["http_reason"] = http_layer.Reason_Phrase.decode(
+                errors="replace"
+            )
+
     return packet_record
 
 def display_packet(packet_record):
@@ -85,6 +139,36 @@ def display_packet(packet_record):
     if packet_record["source_port"] is not None:
         print("Source port:", packet_record["source_port"])
         print("Destination port:", packet_record["destination_port"])
+
+    if packet_record["application_protocol"] is not None:
+        print("Application protocol:", packet_record["application_protocol"])
+
+    if packet_record["dns_query"] is not None:
+        print("DNS query:", packet_record["dns_query"])
+
+    if packet_record["dns_message_type"] is not None:
+        print("DNS message type:", packet_record["dns_message_type"])
+
+    if packet_record["dns_answer"] is not None:
+        print("DNS answer:", packet_record["dns_answer"])
+
+    if packet_record["http_method"] is not None:
+        print("HTTP method:", packet_record["http_method"])
+
+    if packet_record["http_host"] is not None:
+        print("HTTP host:", packet_record["http_host"])
+
+    if packet_record["http_path"] is not None:
+        print("HTTP path:", packet_record["http_path"])
+
+    if packet_record["http_status_code"] is not None:
+        print("HTTP status code:", packet_record["http_status_code"])
+
+    if packet_record["http_reason"] is not None:
+        print("HTTP reason:", packet_record["http_reason"])
+
+    if packet_record["http_message_type"] is not None:
+        print("HTTP message type:", packet_record["http_message_type"])
 
     print()
 
@@ -214,6 +298,82 @@ def calculate_packets_per_second(packet_records):
     packets_per_second = total_records / duration
     return packets_per_second
 
+def calculate_dns_query_counts(packet_records):
+    """Count DNS query packets for each requested domain name."""
+
+    dns_query_count = {}
+    for packet_record in packet_records:
+        dns_message_type = packet_record["dns_message_type"]
+        dns_query = packet_record["dns_query"]
+
+        if dns_message_type != "Query":
+            continue
+
+        if dns_query is None:
+            continue
+
+        dns_query_count[dns_query] = dns_query_count.get(dns_query, 0) + 1
+
+    return dns_query_count
+
+def calculate_http_host_counts(packet_records):
+    """Count HTTP request packets for each available host name."""
+
+    http_host_count = {}
+    for packet_record in packet_records:
+        app_protocol = packet_record["application_protocol"]
+        http_host = packet_record["http_host"]
+
+        if app_protocol != "HTTP":
+            continue
+
+        if http_host is None:
+            continue
+
+        http_host_count[http_host] = http_host_count.get(http_host, 0) + 1
+
+    return http_host_count
+
+def calculate_http_method_counts(packet_records):
+    """Count HTTP request packets for each available request method."""
+
+    http_method_count = {}
+    for packet_record in packet_records:
+        app_protocol = packet_record["application_protocol"]
+        http_method = packet_record["http_method"]
+
+        if app_protocol != "HTTP":
+            continue
+        if http_method is None:
+            continue
+
+        http_method_count[http_method] = (
+            http_method_count.get(http_method, 0) + 1
+        )
+
+    return http_method_count
+
+def calculate_http_status_counts(packet_records):
+    """Count HTTP response packets for each available status code."""
+
+    status_count = {}
+    for packet_record in packet_records:
+        http_message_type = packet_record["http_message_type"]
+        http_status_code = packet_record["http_status_code"]
+
+        if http_message_type != "Response":
+            continue
+
+        if http_status_code is None:
+            continue
+
+        status_count[http_status_code] = (
+            status_count.get(http_status_code, 0) + 1
+        )
+
+    return status_count
+
+
 def calculate_statistics(packet_records):
     """Combine packet records into one capture-level statistics dictionary."""
 
@@ -221,12 +381,18 @@ def calculate_statistics(packet_records):
     source_ip_counts = calculate_source_ip_counts(packet_records)
     destination_ip_counts = calculate_destination_ip_counts(packet_records)
     destination_port_counts = calculate_destination_port_counts(packet_records)
+    dns_query_counts = calculate_dns_query_counts(packet_records)
+    http_host_counts = calculate_http_host_counts(packet_records)
+    http_method_counts = calculate_http_method_counts(packet_records)
+    http_status_counts = calculate_http_status_counts(packet_records)
 
     # Keep the complete protocol breakdown, but limit potentially long host and
     # port rankings to the most frequent entries.
     top_source_ips = get_top_counts(source_ip_counts)
     top_destination_ips = get_top_counts(destination_ip_counts)
     top_destination_ports = get_top_counts(destination_port_counts)
+    top_dns_queries = get_top_counts(dns_query_counts)
+    top_http_hosts = get_top_counts(http_host_counts)
 
     total_packets = len(packet_records)
     total_bytes = calculate_total_bytes(packet_records)
@@ -244,6 +410,10 @@ def calculate_statistics(packet_records):
         "top_destination_ports": top_destination_ports,
         "capture_duration": capture_duration,
         "packets_per_second": packets_per_second,
+        "top_dns_queries": top_dns_queries,
+        "top_http_hosts": top_http_hosts,
+        "http_method_distribution": http_method_counts,
+        "http_status_distribution": http_status_counts,
     }
 
     return statistics
@@ -254,7 +424,6 @@ def display_ranked_counts(title, ranked_counts):
     print(f"\n{title}:")
     for item, count in ranked_counts:
         print(f" {item}: {count}")
-
 
 def display_statistics(statistics):
     """Display the complete capture summary in a readable format."""
@@ -276,6 +445,16 @@ def display_statistics(statistics):
     display_ranked_counts("Top source IPs", statistics["top_source_ips"])
     display_ranked_counts("Top destination IPs", statistics["top_destination_ips"])
     display_ranked_counts("Top destination ports", statistics["top_destination_ports"])
+    display_ranked_counts("Top DNS queries", statistics["top_dns_queries"])
+    display_ranked_counts("Top HTTP hosts", statistics["top_http_hosts"])
+
+    print("\nHTTP method distribution:")
+    for method, count in statistics["http_method_distribution"].items():
+        print(f" {method}: {count}")
+
+    print("\nHTTP status distribution:")
+    for status, count in statistics["http_status_distribution"].items():
+        print(f" {status}: {count}")
 
 
 def main():

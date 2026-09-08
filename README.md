@@ -9,7 +9,7 @@ capture or transmit live network traffic.
 
 ## Current status
 
-Stages 1 and 2 are functionally complete. The analyser currently supports:
+Stages 1 through 3 are functionally complete. The analyser currently supports:
 
 - Reading a user-selected PCAP file
 - IPv4 and IPv6 source and destination addresses
@@ -24,6 +24,13 @@ Stages 1 and 2 are functionally complete. The analyser currently supports:
 - Most active source and destination IP addresses
 - Most frequently used destination ports
 - Capture duration and packets-per-second rate
+- DNS query and response identification
+- DNS query names and IPv4 answer extraction
+- Most frequently queried DNS names
+- Unencrypted HTTP request method, host, and path extraction
+- Unencrypted HTTP response status code and reason extraction
+- Most frequently contacted HTTP hosts
+- HTTP method and response-status distributions
 - Automated parser and statistics tests using Python's built-in `unittest`
 
 ## Project structure
@@ -78,7 +85,8 @@ Generate controlled sample PCAPs:
 python create_sample.py
 ```
 
-This creates separate IPv4, IPv6, and ARP captures. Scapy's `/` operator in the
+This creates separate IPv4, IPv6, and ARP captures. The main IPv4 sample contains
+controlled DNS and HTTP request/response pairs. Scapy's `/` operator in the
 generator stacks packet layers; none of these packets are transmitted.
 
 ## Run the analyser
@@ -102,14 +110,20 @@ python -m unittest discover -s tests -v
 ```
 
 The tests construct packets in memory and verify normalized records for IPv4,
-IPv6, TCP, UDP, ICMP, and ARP. They also verify aggregate statistics, edge cases,
-rankings, and formatted statistics output. They do not send network traffic.
+IPv6, TCP, UDP, ICMP, ARP, DNS, and unencrypted HTTP. They also verify aggregate
+statistics, edge cases, rankings, and formatted output. They do not send network
+traffic.
 
 ## Safety and scope
 
 Only analyse traffic from your own systems, lab environments, or networks for
 which you have explicit authorization. Live capture is deliberately deferred
 until the offline analyser and detection rules are well understood.
+
+HTTP host names, paths, methods, and responses can be read only when the traffic
+is unencrypted and Scapy can decode it as HTTP. HTTPS protects this application
+data with encryption, so this analyser does not claim to extract those fields
+from HTTPS traffic.
 
 Scapy may display `No libpcap provider available` on Windows. This does not block
 the current synthetic-packet or basic offline-PCAP exercises. Live capture and
@@ -119,7 +133,7 @@ its platform-specific dependencies will be addressed in a later stage.
 
 - [x] Stage 1: PCAP packet reader and normalized packet records
 - [x] Stage 2: Traffic statistics
-- [ ] Stage 3: Protocol analysis, including DNS and appropriate HTTP metadata
+- [x] Stage 3: Protocol analysis, including DNS and appropriate HTTP metadata
 - [ ] Stage 4: Understandable rule-based security detection
 - [ ] Stage 5: Structured security alerts
 - [ ] Stage 6: Dashboard
