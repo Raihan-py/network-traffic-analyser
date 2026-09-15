@@ -9,7 +9,7 @@ capture or transmit live network traffic.
 
 ## Current status
 
-Stages 1 through 3 are functionally complete. The analyser currently supports:
+Stages 1 through 4 are functionally complete. The analyser currently supports:
 
 - Reading a user-selected PCAP file
 - IPv4 and IPv6 source and destination addresses
@@ -31,18 +31,25 @@ Stages 1 through 3 are functionally complete. The analyser currently supports:
 - Unencrypted HTTP response status code and reason extraction
 - Most frequently contacted HTTP hosts
 - HTTP method and response-status distributions
-- Automated parser and statistics tests using Python's built-in `unittest`
+- Explainable TCP SYN port-scan detection
+- Unusually long DNS query detection
+- High packet-volume detection by source IP
+- Evidence-based terminal warnings for each detection rule
+- Automated parser, statistics, and detection tests using Python's built-in
+  `unittest`
 
 ## Project structure
 
 ```text
 network_traffic_analyser/
 |-- main.py                    # Parser, statistics, and terminal output
+|-- detectors.py              # Explainable rule-based security detections
 |-- create_sample.py           # Generates safe synthetic test captures
 |-- requirements.txt           # Python dependency versions
 |-- tests/
 |   |-- test_packet_parser.py  # Automated parser tests
-|   `-- test_statistics.py     # Automated statistics and output tests
+|   |-- test_statistics.py     # Automated statistics and output tests
+|   `-- test_detectors.py      # Automated security-detection tests
 `-- README.md
 ```
 
@@ -85,9 +92,10 @@ Generate controlled sample PCAPs:
 python create_sample.py
 ```
 
-This creates separate IPv4, IPv6, and ARP captures. The main IPv4 sample contains
-controlled DNS and HTTP request/response pairs. Scapy's `/` operator in the
-generator stacks packet layers; none of these packets are transmitted.
+This creates separate IPv4, IPv6, ARP, port-scan, long-DNS-query, and
+high-traffic captures. The main IPv4 sample contains controlled DNS and HTTP
+request/response pairs. Scapy's `/` operator in the generator stacks packet
+layers; none of these packets are transmitted.
 
 ## Run the analyser
 
@@ -101,7 +109,13 @@ When prompted, enter one of the generated filenames, for example:
 sample.pcap
 ```
 
-Other generated examples are `ipv6_sample.pcap` and `arp_sample.pcap`.
+Other generated examples include:
+
+- `ipv6_sample.pcap` for IPv6 parsing
+- `arp_sample.pcap` for ARP parsing
+- `scan_sample.pcap` for TCP SYN port-scan detection
+- `long_dns_sample.pcap` for unusually long DNS query detection
+- `high_traffic_sample.pcap` for high packet-volume detection
 
 ## Run the tests
 
@@ -112,7 +126,8 @@ python -m unittest discover -s tests -v
 The tests construct packets in memory and verify normalized records for IPv4,
 IPv6, TCP, UDP, ICMP, ARP, DNS, and unencrypted HTTP. They also verify aggregate
 statistics, edge cases, rankings, and formatted output. They do not send network
-traffic.
+traffic. Detection tests cover thresholds, ignored traffic, separate sources or
+routes, duplicate ports, and displayed evidence.
 
 ## Safety and scope
 
@@ -129,12 +144,17 @@ Scapy may display `No libpcap provider available` on Windows. This does not bloc
 the current synthetic-packet or basic offline-PCAP exercises. Live capture and
 its platform-specific dependencies will be addressed in a later stage.
 
+The security rules are deliberately simple, configurable heuristics. A warning
+means that traffic met a rule's threshold; it does not by itself prove malicious
+activity. Capture duration and the normal behaviour of the monitored network
+should always be considered when interpreting results.
+
 ## Roadmap
 
 - [x] Stage 1: PCAP packet reader and normalized packet records
 - [x] Stage 2: Traffic statistics
 - [x] Stage 3: Protocol analysis, including DNS and appropriate HTTP metadata
-- [ ] Stage 4: Understandable rule-based security detection
+- [x] Stage 4: Understandable rule-based security detection
 - [ ] Stage 5: Structured security alerts
 - [ ] Stage 6: Dashboard
 - [ ] Stage 7: Authorized live traffic analysis

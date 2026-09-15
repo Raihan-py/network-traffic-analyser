@@ -29,6 +29,7 @@ EXPECTED_KEYS = {
     "http_message_type",
     "http_status_code",
     "http_reason",
+    "tcp_flags",
 }
 
 
@@ -58,6 +59,7 @@ class ParsePacketTests(unittest.TestCase):
         self.assertEqual(record["source_port"], 51000)
         self.assertEqual(record["destination_port"], 80)
         self.assertEqual(record["packet_size"], 40)
+        self.assertEqual(record["tcp_flags"], "S")
 
     def test_ipv4_udp_packet(self):
         packet = IP(src="192.0.2.30", dst="198.51.100.40") / UDP(
@@ -71,6 +73,7 @@ class ParsePacketTests(unittest.TestCase):
         self.assertEqual(record["source_port"], 52000)
         self.assertEqual(record["destination_port"], 53)
         self.assertEqual(record["packet_size"], 28)
+        self.assertIsNone(record["tcp_flags"])
         self.assertIsNone(record["application_protocol"])
         self.assertIsNone(record["dns_query"])
 
@@ -134,6 +137,7 @@ class ParsePacketTests(unittest.TestCase):
         self.assertEqual(record["http_host"], "example.test")
         self.assertEqual(record["http_path"], "/index.html")
         self.assertEqual(record["http_message_type"], "Request")
+        self.assertEqual(record["tcp_flags"], "PA")
         self.assertIsNone(record["http_status_code"])
         self.assertIsNone(record["http_reason"])
 
@@ -155,6 +159,7 @@ class ParsePacketTests(unittest.TestCase):
         self.assertEqual(record["http_status_code"], "200")
         self.assertEqual(record["http_reason"], "OK")
         self.assertIsNone(record["http_method"])
+        self.assertEqual(record["tcp_flags"], "PA")
 
     def test_display_packet_prints_http_metadata(self):
         packet = (
@@ -179,6 +184,7 @@ class ParsePacketTests(unittest.TestCase):
         self.assertIn("HTTP host: example.test", displayed_text)
         self.assertIn("HTTP path: /index.html", displayed_text)
         self.assertIn("HTTP message type: Request", displayed_text)
+        self.assertIn("TCP flags: PA", displayed_text)
 
     def test_display_packet_prints_http_response_metadata(self):
         packet = (

@@ -19,6 +19,15 @@ udp_packet = (
     / UDP(sport=52000, dport=53)
     / DNS(rd=1, qd=DNSQR(qname="example.test"))
 )
+
+# The name exceeds the detector's default 50-character threshold.
+long_dns_name = ("a" * 50) + ".example.test"
+long_dns_packet = (
+    IP(src="192.0.2.90", dst="198.51.100.53")
+    / UDP(sport=56000, dport=53)
+    / DNS(qr=0, rd=1, qd=DNSQR(qname=long_dns_name))
+)
+
 icmp_packet = (
     IP(src="192.0.2.50", dst="198.51.100.60")
     / ICMP()
@@ -72,7 +81,15 @@ http_response_packet = (
     / HTTPResponse(Status_Code=b"200", Reason_Phrase=b"OK")
 )
 
-packets = [tcp_packet, udp_packet, dns_response_packet, http_request_packet, http_response_packet, icmp_packet]
+packets = [
+    tcp_packet,
+    udp_packet,
+    dns_response_packet,
+    http_request_packet,
+    http_response_packet,
+    icmp_packet,
+]
+scan_ports = [22, 80, 443, 3389, 8080, 8443]
 
 base_timestamp = time.time()
 tcp_packet.time = base_timestamp
@@ -81,6 +98,32 @@ dns_response_packet.time = base_timestamp + 0.75
 http_request_packet.time = base_timestamp + 1
 http_response_packet.time = base_timestamp + 1.125
 icmp_packet.time = base_timestamp + 1.25
+long_dns_packet.time = base_timestamp + 1.5
+
+scan_packets = []
+# SYN attempts to several unique ports provide controlled port-scan evidence.
+for index, destination_port in enumerate(scan_ports):
+    scan_packet = (
+        IP(src="192.0.2.100", dst="198.51.100.100")
+        / TCP(
+            sport=55000 + index,
+            dport=destination_port,
+            flags="S",
+        )
+    )
+
+    scan_packet.time = base_timestamp + (index * 0.1)
+    scan_packets.append(scan_packet)
+
+high_traffic_packets = []
+# One source sends 100 packets to meet the high-traffic detector threshold.
+for index in range(100):
+    high_traffic_packet = (
+        IP(src="198.51.100.40", dst="192.0.2.30")
+        / UDP(sport=58000 + index, dport=123)
+    )
+    high_traffic_packet.time = base_timestamp + (index * 0.01)
+    high_traffic_packets.append(high_traffic_packet)
 
 
 # wrpcap serializes packets into a capture file without sending network traffic.
@@ -93,3 +136,12 @@ print("created arp_sample.pcap")
 
 wrpcap("ipv6_sample.pcap", [ipv6_packet])
 print("created ipv6_sample.pcap")
+
+wrpcap("scan_sample.pcap", scan_packets)
+print("created scan_sample.pcap")
+
+wrpcap("long_dns_sample.pcap", [long_dns_packet])
+print("created long_dns_sample.pcap")
+
+wrpcap("high_traffic_sample.pcap", high_traffic_packets)
+print("created high_traffic_sample.pcap")

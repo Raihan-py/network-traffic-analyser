@@ -6,6 +6,12 @@ from scapy.all import IP, TCP, UDP, ICMP, IPv6, ARP, rdpcap, DNS, DNSQR, DNSRR
 from scapy.error import Scapy_Exception
 from scapy.layers.http import HTTPRequest, HTTPResponse
 
+from detectors import (
+    detect_high_traffic_sources,
+    detect_long_dns_queries,
+    detect_syn_port_scans,
+)
+
 
 def parse_packet(packet, packet_number):
     """Convert one Scapy packet into a normalized dictionary.
@@ -44,6 +50,7 @@ def parse_packet(packet, packet_number):
         "http_message_type": None,
         "http_status_code": None,
         "http_reason": None,
+        "tcp_flags": None,
     }
 
     # IP addresses belong to the network layer and are separate from ports.
@@ -64,6 +71,7 @@ def parse_packet(packet, packet_number):
         packet_record["protocol"] = "TCP"
         packet_record["source_port"] = tcp_layer.sport
         packet_record["destination_port"] = tcp_layer.dport
+        packet_record["tcp_flags"] = str(tcp_layer.flags)
 
     elif packet.haslayer(UDP):
         udp_layer = packet[UDP]
@@ -170,7 +178,11 @@ def display_packet(packet_record):
     if packet_record["http_message_type"] is not None:
         print("HTTP message type:", packet_record["http_message_type"])
 
+    if packet_record["tcp_flags"] is not None:
+        print("TCP flags:", packet_record["tcp_flags"])
+
     print()
+
 
 def calculate_total_bytes(packet_records):
     """Return the combined size of all parsed packets"""
@@ -456,6 +468,52 @@ def display_statistics(statistics):
     for status, count in statistics["http_status_distribution"].items():
         print(f" {status}: {count}")
 
+def display_port_scan_detections(detections):
+    """Display possible TCP SYN port scans and their supporting evidence."""
+
+    print("\nSecurity detections:")
+    if not detections:
+        print(" No potential TCP SYN port scans detected.")
+        return
+
+    for detection in detections:
+        print(" [WARNING] Possible TCP SYN port scan")
+        print("  Source IP:", detection["source_ip"])
+        print("  Destination IP:", detection["destination_ip"])
+        print("  Unique destination ports:", detection["port_count"])
+        ports_text = ", ".join(str(port) for port in detection["ports"])
+        print("  Ports:", ports_text)
+
+
+def display_long_dns_query_detections(detections):
+    """Display unusually long DNS queries and their supporting evidence."""
+
+    print("\nLong DNS query detections:")
+    if not detections:
+        print(" No unusually long DNS queries were found.")
+        return
+
+    for detection in detections:
+        print(" [WARNING] Unusually long DNS query")
+        print("  Packet number:", detection["packet_number"])
+        print("  Source IP:", detection["source_ip"])
+        print("  DNS query:", detection["dns_query"])
+        print("  Query length:", detection["query_length"])
+
+
+def display_high_traffic_source_detections(detections):
+    """Display high-traffic source IPs and their packet counts."""
+
+    print("\nHigh traffic source detections:")
+    if not detections:
+        print(" No high-traffic sources were detected.")
+        return
+
+    for detection in detections:
+        print(" [WARNING] Unusually high traffic volume from one source")
+        print("  Source IP:", detection["source_ip"])
+        print("  Packet count:", detection["packet_count"])
+
 
 def main():
     """Run the command-line PCAP analyser."""
@@ -489,6 +547,16 @@ def main():
 
     statistics = calculate_statistics(packet_records)
     display_statistics(statistics)
+
+    port_scan_detections = detect_syn_port_scans(packet_records)
+    display_port_scan_detections(port_scan_detections)
+
+    long_dns_query_detections = detect_long_dns_queries(packet_records)
+    display_long_dns_query_detections(long_dns_query_detections)
+
+    high_traffic_detections = detect_high_traffic_sources(packet_records)
+    display_high_traffic_source_detections(high_traffic_detections)
+
 
 # Prevent the interactive program from running when tests import its functions.
 if __name__ == "__main__":
