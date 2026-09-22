@@ -1,18 +1,11 @@
 """Automated tests for rule-based traffic detections."""
 
-import io
 import unittest
-from contextlib import redirect_stdout
 
 from detectors import (
     detect_high_traffic_sources,
     detect_long_dns_queries,
     detect_syn_port_scans,
-)
-from main import (
-    display_high_traffic_source_detections,
-    display_long_dns_query_detections,
-    display_port_scan_detections,
 )
 
 
@@ -29,6 +22,7 @@ class SynPortScanTests(unittest.TestCase):
             "source_ip": "192.0.2.100",
             "destination_ip": "198.51.100.100",
             "destination_port": 80,
+            "timestamp": "2026-09-22T12:00:00+00:00",
         }
         packet_record.update(overrides)
         return packet_record
@@ -50,8 +44,28 @@ class SynPortScanTests(unittest.TestCase):
                     "destination_ip": "198.51.100.100",
                     "ports": [22, 80, 443],
                     "port_count": 3,
+                    "timestamp": "2026-09-22T12:00:00+00:00",
                 }
             ],
+        )
+
+    def test_keeps_first_timestamp_for_route(self):
+        records = [
+            self.record(
+                destination_port=22,
+                timestamp="2026-09-22T12:00:00+00:00",
+            ),
+            self.record(
+                destination_port=80,
+                timestamp="2026-09-22T12:00:01+00:00",
+            ),
+        ]
+
+        detections = detect_syn_port_scans(records, minimum_ports=2)
+
+        self.assertEqual(
+            detections[0]["timestamp"],
+            "2026-09-22T12:00:00+00:00",
         )
 
     def test_does_not_detect_route_below_threshold(self):
@@ -102,36 +116,6 @@ class SynPortScanTests(unittest.TestCase):
         self.assertEqual(detections[0]["ports"], [22, 80])
         self.assertEqual(detections[1]["ports"], [443, 8080])
 
-    def test_display_reports_when_no_scan_is_detected(self):
-        output = io.StringIO()
-
-        with redirect_stdout(output):
-            display_port_scan_detections([])
-
-        self.assertIn("No potential TCP SYN port scans detected.", output.getvalue())
-
-    def test_display_prints_scan_evidence(self):
-        detections = [
-            {
-                "source_ip": "192.0.2.100",
-                "destination_ip": "198.51.100.100",
-                "ports": [22, 80, 443],
-                "port_count": 3,
-            }
-        ]
-        output = io.StringIO()
-
-        with redirect_stdout(output):
-            display_port_scan_detections(detections)
-
-        displayed_text = output.getvalue()
-        self.assertIn("[WARNING] Possible TCP SYN port scan", displayed_text)
-        self.assertIn("Source IP: 192.0.2.100", displayed_text)
-        self.assertIn("Destination IP: 198.51.100.100", displayed_text)
-        self.assertIn("Unique destination ports: 3", displayed_text)
-        self.assertIn("Ports: 22, 80, 443", displayed_text)
-
-
 class LongDnsQueryTests(unittest.TestCase):
     """Verify detection of unusually long DNS query names."""
 
@@ -144,6 +128,7 @@ class LongDnsQueryTests(unittest.TestCase):
             "source_ip": "192.0.2.10",
             "dns_message_type": "Query",
             "dns_query": "example.com.",
+            "timestamp": "2026-09-22T12:00:00+00:00",
         }
         packet_record.update(overrides)
         return packet_record
@@ -163,9 +148,20 @@ class LongDnsQueryTests(unittest.TestCase):
                     "source_ip": "192.0.2.10",
                     "dns_query": query.rstrip("."),
                     "query_length": 50,
+                    "timestamp": "2026-09-22T12:00:00+00:00",
                 }
             ],
         )
+
+    def test_preserves_triggering_packet_timestamp(self):
+        timestamp = "2026-09-22T12:34:56+00:00"
+
+        detections = detect_long_dns_queries(
+            [self.record(dns_query="a" * 55 + ".", timestamp=timestamp)],
+            minimum_length=50,
+        )
+
+        self.assertEqual(detections[0]["timestamp"], timestamp)
 
     def test_does_not_detect_query_below_threshold(self):
         detections = detect_long_dns_queries(
@@ -195,46 +191,17 @@ class LongDnsQueryTests(unittest.TestCase):
         self.assertEqual(len(detections), 1)
         self.assertEqual(detections[0]["packet_number"], 2)
 
-    def test_display_reports_when_no_long_query_is_detected(self):
-        output = io.StringIO()
-
-        with redirect_stdout(output):
-            display_long_dns_query_detections([])
-
-        self.assertIn(
-            "No unusually long DNS queries were found.", output.getvalue()
-        )
-
-    def test_display_prints_long_query_evidence(self):
-        detections = [
-            {
-                "packet_number": 4,
-                "source_ip": "192.0.2.10",
-                "dns_query": "a" * 55,
-                "query_length": 55,
-            }
-        ]
-        output = io.StringIO()
-
-        with redirect_stdout(output):
-            display_long_dns_query_detections(detections)
-
-        displayed_text = output.getvalue()
-        self.assertIn("[WARNING] Unusually long DNS query", displayed_text)
-        self.assertIn("Packet number: 4", displayed_text)
-        self.assertIn("Source IP: 192.0.2.10", displayed_text)
-        self.assertIn("DNS query: " + "a" * 55, displayed_text)
-        self.assertIn("Query length: 55", displayed_text)
-
-
 class HighTrafficSourceTests(unittest.TestCase):
     """Verify detection of sources contributing many packets."""
 
     @staticmethod
-    def record(source_ip="192.0.2.10"):
+    def record(
+        source_ip="192.0.2.10",
+        timestamp="2026-09-22T12:00:00+00:00",
+    ):
         """Create the minimal normalized record needed by this detector."""
 
-        return {"source_ip": source_ip}
+        return {"source_ip": source_ip, "timestamp": timestamp}
 
     def test_detects_source_at_minimum_packet_threshold(self):
         records = [self.record() for _ in range(3)]
@@ -243,7 +210,26 @@ class HighTrafficSourceTests(unittest.TestCase):
 
         self.assertEqual(
             detections,
-            [{"source_ip": "192.0.2.10", "packet_count": 3}],
+            [
+                {
+                    "source_ip": "192.0.2.10",
+                    "packet_count": 3,
+                    "timestamp": "2026-09-22T12:00:00+00:00",
+                }
+            ],
+        )
+
+    def test_keeps_first_timestamp_for_source(self):
+        records = [
+            self.record(timestamp="2026-09-22T12:00:00+00:00"),
+            self.record(timestamp="2026-09-22T12:00:01+00:00"),
+        ]
+
+        detections = detect_high_traffic_sources(records, minimum_packets=2)
+
+        self.assertEqual(
+            detections[0]["timestamp"],
+            "2026-09-22T12:00:00+00:00",
         )
 
     def test_does_not_detect_source_below_threshold(self):
@@ -264,7 +250,13 @@ class HighTrafficSourceTests(unittest.TestCase):
 
         self.assertEqual(
             detections,
-            [{"source_ip": "192.0.2.10", "packet_count": 2}],
+            [
+                {
+                    "source_ip": "192.0.2.10",
+                    "packet_count": 2,
+                    "timestamp": "2026-09-22T12:00:00+00:00",
+                }
+            ],
         )
 
     def test_ignores_records_without_a_source_ip(self):
@@ -273,30 +265,6 @@ class HighTrafficSourceTests(unittest.TestCase):
         detections = detect_high_traffic_sources(records, minimum_packets=1)
 
         self.assertEqual(detections, [])
-
-    def test_display_reports_when_no_high_traffic_source_is_detected(self):
-        output = io.StringIO()
-
-        with redirect_stdout(output):
-            display_high_traffic_source_detections([])
-
-        self.assertIn("No high-traffic sources were detected.", output.getvalue())
-
-    def test_display_prints_high_traffic_evidence(self):
-        detections = [{"source_ip": "192.0.2.10", "packet_count": 100}]
-        output = io.StringIO()
-
-        with redirect_stdout(output):
-            display_high_traffic_source_detections(detections)
-
-        displayed_text = output.getvalue()
-        self.assertIn(
-            "[WARNING] Unusually high traffic volume from one source",
-            displayed_text,
-        )
-        self.assertIn("Source IP: 192.0.2.10", displayed_text)
-        self.assertIn("Packet count: 100", displayed_text)
-
 
 if __name__ == "__main__":
     unittest.main()

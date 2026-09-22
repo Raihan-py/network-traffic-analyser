@@ -4,6 +4,7 @@
 def detect_syn_port_scans(packet_records, minimum_ports=5):
     """Return routes that receive SYN attempts on many unique ports."""
 
+    first_timestamp_by_route = {}
     syn_ports_by_route = {}
     for packet_record in packet_records:
         if packet_record["protocol"] != "TCP":
@@ -25,6 +26,10 @@ def detect_syn_port_scans(packet_records, minimum_ports=5):
 
         route = (source_ip, destination_ip)
         syn_ports_by_route.setdefault(route, set()).add(destination_port)
+        first_timestamp_by_route.setdefault(
+            route,
+            packet_record["timestamp"],
+        )
 
     detections = []
     for (source_ip, destination_ip), ports in syn_ports_by_route.items():
@@ -36,10 +41,12 @@ def detect_syn_port_scans(packet_records, minimum_ports=5):
                 "destination_ip": destination_ip,
                 "ports": sorted(ports),
                 "port_count": len(ports),
+                "timestamp": first_timestamp_by_route[(source_ip, destination_ip)],
             }
         )
 
     return detections
+
 
 def detect_long_dns_queries(packet_records, minimum_length=50):
     """Return DNS queries whose names meet the suspicious length threshold."""
@@ -61,14 +68,17 @@ def detect_long_dns_queries(packet_records, minimum_length=50):
                 "source_ip": packet_record["source_ip"],
                 "dns_query": clean_query,
                 "query_length": query_length,
+                "timestamp": packet_record["timestamp"],
             }
             detections.append(detection)
 
     return detections
 
+
 def detect_high_traffic_sources(packet_records, minimum_packets=100):
     """Return source IPs whose packet counts meet the high-traffic threshold."""
 
+    first_timestamp_by_source = {}
     source_packet_counts = {}
     for packet_record in packet_records:
         source_ip = packet_record["source_ip"]
@@ -79,12 +89,18 @@ def detect_high_traffic_sources(packet_records, minimum_packets=100):
             source_packet_counts.get(source_ip, 0) + 1
         )
 
+        first_timestamp_by_source.setdefault(
+            source_ip,
+            packet_record["timestamp"],
+        )
+
     detections = []
     for source_ip, packet_count in source_packet_counts.items():
         if packet_count >= minimum_packets:
             detection = {
                 "source_ip": source_ip,
                 "packet_count": packet_count,
+                "timestamp": first_timestamp_by_source[source_ip],
             }
             detections.append(detection)
     return detections

@@ -9,7 +9,7 @@ capture or transmit live network traffic.
 
 ## Current status
 
-Stages 1 through 4 are functionally complete. The analyser currently supports:
+Stages 1 through 5 are functionally complete. The analyser currently supports:
 
 - Reading a user-selected PCAP file
 - IPv4 and IPv6 source and destination addresses
@@ -34,9 +34,11 @@ Stages 1 through 4 are functionally complete. The analyser currently supports:
 - Explainable TCP SYN port-scan detection
 - Unusually long DNS query detection
 - High packet-volume detection by source IP
-- Evidence-based terminal warnings for each detection rule
-- Automated parser, statistics, and detection tests using Python's built-in
-  `unittest`
+- Consistent alerts containing type, severity, source, description, timestamp,
+  and rule-specific evidence
+- A unified terminal display for structured security alerts
+- Automated parser, statistics, detection, and alert tests using Python's
+  built-in `unittest`
 
 ## Project structure
 
@@ -44,12 +46,14 @@ Stages 1 through 4 are functionally complete. The analyser currently supports:
 network_traffic_analyser/
 |-- main.py                    # Parser, statistics, and terminal output
 |-- detectors.py              # Explainable rule-based security detections
+|-- alerts.py                 # Structured alert creation and conversion
 |-- create_sample.py           # Generates safe synthetic test captures
 |-- requirements.txt           # Python dependency versions
 |-- tests/
 |   |-- test_packet_parser.py  # Automated parser tests
 |   |-- test_statistics.py     # Automated statistics and output tests
-|   `-- test_detectors.py      # Automated security-detection tests
+|   |-- test_detectors.py      # Automated security-detection tests
+|   `-- test_alerts.py         # Automated structured-alert tests
 `-- README.md
 ```
 
@@ -127,7 +131,8 @@ The tests construct packets in memory and verify normalized records for IPv4,
 IPv6, TCP, UDP, ICMP, ARP, DNS, and unencrypted HTTP. They also verify aggregate
 statistics, edge cases, rankings, and formatted output. They do not send network
 traffic. Detection tests cover thresholds, ignored traffic, separate sources or
-routes, duplicate ports, and displayed evidence.
+routes, and duplicate ports. Alert tests verify the shared schema, severity,
+conversion, evidence, combined alert lists, and terminal output.
 
 ## Safety and scope
 
@@ -155,6 +160,6 @@ should always be considered when interpreting results.
 - [x] Stage 2: Traffic statistics
 - [x] Stage 3: Protocol analysis, including DNS and appropriate HTTP metadata
 - [x] Stage 4: Understandable rule-based security detection
-- [ ] Stage 5: Structured security alerts
+- [x] Stage 5: Structured security alerts
 - [ ] Stage 6: Dashboard
 - [ ] Stage 7: Authorized live traffic analysis

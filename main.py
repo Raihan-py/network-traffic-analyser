@@ -12,6 +12,8 @@ from detectors import (
     detect_syn_port_scans,
 )
 
+from alerts import create_security_alerts
+
 
 def parse_packet(packet, packet_number):
     """Convert one Scapy packet into a normalized dictionary.
@@ -468,51 +470,34 @@ def display_statistics(statistics):
     for status, count in statistics["http_status_distribution"].items():
         print(f" {status}: {count}")
 
-def display_port_scan_detections(detections):
-    """Display possible TCP SYN port scans and their supporting evidence."""
+def display_security_alerts(security_alerts):
+    """Display structured security alerts using one consistent format."""
 
-    print("\nSecurity detections:")
-    if not detections:
-        print(" No potential TCP SYN port scans detected.")
+    print("\nStructured security alerts:")
+    if not security_alerts:
+        print(" No security alerts generated.")
         return
 
-    for detection in detections:
-        print(" [WARNING] Possible TCP SYN port scan")
-        print("  Source IP:", detection["source_ip"])
-        print("  Destination IP:", detection["destination_ip"])
-        print("  Unique destination ports:", detection["port_count"])
-        ports_text = ", ".join(str(port) for port in detection["ports"])
-        print("  Ports:", ports_text)
+    for alert_number, alert in enumerate(security_alerts, start=1):
+        print(f"\n Alert {alert_number}:")
+        print("  Severity:", alert["severity"])
+        print("  Alert type:", alert["alert_type"])
+        print("  Timestamp:", alert["timestamp"])
+        print("  Source IP:", alert["source_ip"])
+        print("  Description:", alert["description"])
 
-
-def display_long_dns_query_detections(detections):
-    """Display unusually long DNS queries and their supporting evidence."""
-
-    print("\nLong DNS query detections:")
-    if not detections:
-        print(" No unusually long DNS queries were found.")
-        return
-
-    for detection in detections:
-        print(" [WARNING] Unusually long DNS query")
-        print("  Packet number:", detection["packet_number"])
-        print("  Source IP:", detection["source_ip"])
-        print("  DNS query:", detection["dns_query"])
-        print("  Query length:", detection["query_length"])
-
-
-def display_high_traffic_source_detections(detections):
-    """Display high-traffic source IPs and their packet counts."""
-
-    print("\nHigh traffic source detections:")
-    if not detections:
-        print(" No high-traffic sources were detected.")
-        return
-
-    for detection in detections:
-        print(" [WARNING] Unusually high traffic volume from one source")
-        print("  Source IP:", detection["source_ip"])
-        print("  Packet count:", detection["packet_count"])
+        print("  Evidence:")
+        evidence = alert["evidence"]
+        preferred_labels = {
+            "destination_ip": "Destination IP",
+            "dns_query": "DNS query",
+        }
+        for evidence_name, evidence_value in evidence.items():
+            evidence_label = preferred_labels.get(
+                evidence_name,
+                evidence_name.replace("_", " ").capitalize(),
+            )
+            print(f"   {evidence_label}: {evidence_value}")
 
 
 def main():
@@ -549,13 +534,16 @@ def main():
     display_statistics(statistics)
 
     port_scan_detections = detect_syn_port_scans(packet_records)
-    display_port_scan_detections(port_scan_detections)
-
     long_dns_query_detections = detect_long_dns_queries(packet_records)
-    display_long_dns_query_detections(long_dns_query_detections)
-
     high_traffic_detections = detect_high_traffic_sources(packet_records)
-    display_high_traffic_source_detections(high_traffic_detections)
+
+    security_alerts = create_security_alerts(
+        port_scan_detections,
+        long_dns_query_detections,
+        high_traffic_detections,
+    )
+
+    display_security_alerts(security_alerts)
 
 
 # Prevent the interactive program from running when tests import its functions.
