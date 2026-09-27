@@ -9,7 +9,7 @@ capture or transmit live network traffic.
 
 ## Current status
 
-Stages 1 through 5 are functionally complete. The analyser currently supports:
+Stages 1 through 6 are functionally complete. The analyser currently supports:
 
 - Reading a user-selected PCAP file
 - IPv4 and IPv6 source and destination addresses
@@ -37,8 +37,12 @@ Stages 1 through 5 are functionally complete. The analyser currently supports:
 - Consistent alerts containing type, severity, source, description, timestamp,
   and rule-specific evidence
 - A unified terminal display for structured security alerts
-- Automated parser, statistics, detection, and alert tests using Python's
-  built-in `unittest`
+- A Streamlit dashboard with capture metrics, protocol distribution, traffic
+  rankings, expandable security alerts, and packet details
+- Interactive packet filtering by transport protocol
+- CSV export of the currently filtered packet records
+- Automated parser, statistics, detection, alert, CSV-export, and dashboard
+  entry tests using Python's built-in `unittest`
 
 ## Project structure
 
@@ -47,13 +51,17 @@ network_traffic_analyser/
 |-- main.py                    # Parser, statistics, and terminal output
 |-- detectors.py              # Explainable rule-based security detections
 |-- alerts.py                 # Structured alert creation and conversion
+|-- dashboard_utils.py        # Pure data helpers for dashboard exports
 |-- create_sample.py           # Generates safe synthetic test captures
 |-- requirements.txt           # Python dependency versions
+|-- streamlit_app.py           # Interactive Streamlit dashboard
 |-- tests/
 |   |-- test_packet_parser.py  # Automated parser tests
 |   |-- test_statistics.py     # Automated statistics and output tests
 |   |-- test_detectors.py      # Automated security-detection tests
-|   `-- test_alerts.py         # Automated structured-alert tests
+|   |-- test_alerts.py         # Automated structured-alert tests
+|   |-- test_dashboard_utils.py # Automated CSV-export tests
+|   `-- test_streamlit_app.py  # Headless dashboard entry tests
 `-- README.md
 ```
 
@@ -65,6 +73,7 @@ hostnames, DNS queries, or payload data and should not be committed casually.
 
 - Python 3.12 (the version currently tested)
 - Scapy 2.7.0
+- Streamlit 1.64.0
 
 ## Setup
 
@@ -121,6 +130,19 @@ Other generated examples include:
 - `long_dns_sample.pcap` for unusually long DNS query detection
 - `high_traffic_sample.pcap` for high packet-volume detection
 
+## Run the dashboard
+
+Start the Streamlit interface from the project directory:
+
+```powershell
+streamlit run streamlit_app.py
+```
+
+Upload one of the generated PCAP files in the browser. The dashboard displays
+capture metrics, protocol counts, traffic rankings, security alerts, and a
+filterable packet table. The download button exports only the packet protocols
+currently selected in the filter.
+
 ## Run the tests
 
 ```powershell
@@ -132,7 +154,9 @@ IPv6, TCP, UDP, ICMP, ARP, DNS, and unencrypted HTTP. They also verify aggregate
 statistics, edge cases, rankings, and formatted output. They do not send network
 traffic. Detection tests cover thresholds, ignored traffic, separate sources or
 routes, and duplicate ports. Alert tests verify the shared schema, severity,
-conversion, evidence, combined alert lists, and terminal output.
+conversion, evidence, combined alert lists, and terminal output. Dashboard tests
+verify the entry screen headlessly, while utility tests verify filtered packet
+records can be exported with stable CSV columns.
 
 ## Safety and scope
 
@@ -161,5 +185,5 @@ should always be considered when interpreting results.
 - [x] Stage 3: Protocol analysis, including DNS and appropriate HTTP metadata
 - [x] Stage 4: Understandable rule-based security detection
 - [x] Stage 5: Structured security alerts
-- [ ] Stage 6: Dashboard
+- [x] Stage 6: Dashboard
 - [ ] Stage 7: Authorized live traffic analysis
